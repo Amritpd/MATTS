@@ -14,24 +14,6 @@ The key difference here is that agents do not communicate directly. Instead, the
 
 <img width="1024" height="559" alt="MATTS Architecture Diagram" src="https://github.com/user-attachments/assets/1ad976e4-6c92-4017-a733-d6d37d731491" />
 
-```mermaid
-graph TD
-    Start((Start)) --> Triage["📥 Triage Agent: Extracts Parameters"]
-    Triage --> Policy["🏛️ Policy Agent: Hardcodes Limits"]
-    Policy --> Inventory["🔎 Inventory Agent: Fetches Flights"]
-    Inventory --> Supervisor{"🚦 Supervisor Router\n(Deterministic Code)"}
-    
-    Supervisor -- "Cost > Budget" --> Approval["✋ Manager Approval Loop"]
-    Supervisor -- "Cost <= Budget" --> Execution["💳 Execution Agent"]
-    
-    Approval -- "Approved" --> Execution
-    Execution --> Finish((End))
-
-    classDef pureCode fill:#f2f2f2,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5;
-    class Supervisor pureCode;
-```
-
----
 
 ## 🛡️ MATTS Risk Mitigation & Failure Mapping
 
