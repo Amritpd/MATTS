@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="caseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="strapGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- Handle -->
+  <path d="M24 16 V10 C24 7 28 5 32 5 C36 5 40 7 40 10 V16" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
+  <!-- Main Body -->
+  <rect x="8" y="16" width="48" height="38" rx="8" fill="url(#caseGrad)" stroke="#1e40af" stroke-width="2"/>
+  <!-- Straps / FinTech Accents -->
+  <rect x="20" y="16" width="5" height="38" fill="url(#strapGrad)"/>
+  <rect x="39" y="16" width="5" height="38" fill="url(#strapGrad)"/>
+  <!-- Center Lock / Badge -->
+  <rect x="29" y="31" width="6" height="8" rx="2" fill="#fbbf24"/>
+  <!-- Corner Protectors -->
+  <circle cx="12" cy="20" r="2" fill="#93c5fd"/>
+  <circle cx="52" cy="20" r="2" fill="#93c5fd"/>
+  <circle cx="12" cy="50" r="2" fill="#93c5fd"/>
+  <circle cx="52" cy="50" r="2" fill="#93c5fd"/>
+</svg>
