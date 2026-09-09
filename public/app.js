@@ -3,6 +3,28 @@
 // ============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Tab Switcher Elements
+  const tabBtnSim = document.getElementById("tab-btn-sim");
+  const tabBtnDoc = document.getElementById("tab-btn-doc");
+  const viewSimulation = document.getElementById("view-simulation");
+  const viewWhitepaper = document.getElementById("view-whitepaper");
+
+  if (tabBtnSim && tabBtnDoc) {
+    tabBtnSim.addEventListener("click", () => {
+      tabBtnSim.classList.add("active");
+      tabBtnDoc.classList.remove("active");
+      viewSimulation.style.display = "block";
+      viewWhitepaper.style.display = "none";
+    });
+
+    tabBtnDoc.addEventListener("click", () => {
+      tabBtnDoc.classList.add("active");
+      tabBtnSim.classList.remove("active");
+      viewSimulation.style.display = "none";
+      viewWhitepaper.style.display = "flex";
+    });
+  }
+
   // DOM Elements
   const form = document.getElementById("simulation-form");
   const btnRun = document.getElementById("btn-run");
@@ -25,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const logsConsole = document.getElementById("logs-console");
   const btnClearLogs = document.getElementById("btn-clear-logs");
   const engineStatus = document.getElementById("engine-status");
+
 
   // State Machine Node Elements in DAG
   const nodes = {
