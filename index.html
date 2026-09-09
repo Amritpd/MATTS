@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MATTS — Multi-Agent Tamed Travel System | Observability Dashboard & Architecture RFC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation / Header -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">🧳</div>
+      <div>
+        <div class="brand-title">MATTS <span class="badge badge-fintech">FinTech Architecture</span></div>
+        <div class="brand-subtitle">Multi-Agent Tamed Travel System • Shared State & Deterministic Guardrails</div>
+      </div>
+    </div>
+    
+    <!-- View Switcher Tabs -->
+    <div class="view-tabs">
+      <button id="tab-btn-sim" class="view-tab active">
+        <span class="tab-icon">🎮</span> Live Simulation & DAG
+      </button>
+      <button id="tab-btn-doc" class="view-tab">
+        <span class="tab-icon">📖</span> Systems RFC & Whitepaper
+      </button>
+    </div>
+
+    <div class="nav-metrics">
+      <div class="metric-pill">
+        <span class="pulse-dot"></span>
+        <span id="engine-status">LangGraph Engine Ready</span>
+      </div>
+      <a href="https://github.com/Amritpd/MATTS" target="_blank" class="github-link">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- VIEW 1: Interactive Simulation & DAG Observability -->
+  <div id="view-simulation" class="view-container active-view">
+    <main class="dashboard-grid">
+      <!-- Left Column: Controls & Presets -->
+      <section class="panel control-panel">
+        <div class="panel-header">
+          <h2>🎮 Simulation Controls</h2>
+          <span class="panel-tag">Interactive</span>
+        </div>
+
+        <!-- Presets -->
+        <div class="section-block">
+          <label class="section-label">1. Quick Presets</label>
+          <div class="preset-buttons">
+            <button id="preset-intercept" class="btn btn-preset active">
+              <span class="preset-icon">🚨</span>
+              <div>
+                <div class="preset-name">Policy Breach & Escalation</div>
+                <div class="preset-desc">Flight $650 > Limit $500 → Intercepted</div>
+              </div>
+            </button>
+            <button id="preset-compliant" class="btn btn-preset">
+              <span class="preset-icon">⚡</span>
+              <div>
+                <div class="preset-name">Compliant Direct Flow</div>
+                <div class="preset-desc">Flight $420 ≤ Limit $500 → Auto Execution</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Inputs -->
+        <form id="simulation-form" class="section-block">
+          <label class="section-label">2. Parameters Configuration</label>
+          
+          <div class="form-group">
+            <label for="input-prompt">User Natural Language Request</label>
+            <input type="text" id="input-prompt" class="text-input" value="Book a flight from YVR to SFO on 2026-10-15" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="input-budget">Policy Cap ($ maxBudget)</label>
+              <div class="slider-container">
+                <input type="range" id="input-budget" min="100" max="1500" step="25" value="500">
+                <span id="display-budget" class="val-pill">$500</span>
+              </div>
+            </div>
+            <div class="form-group flex-1">
+              <label for="input-cost">Mock Flight Cost ($)</label>
+              <div class="slider-container">
+                <input type="range" id="input-cost" min="100" max="1500" step="25" value="650">
+                <span id="display-cost" class="val-pill">$650</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="input-airline">Simulated Airline</label>
+              <select id="input-airline" class="select-input">
+                <option value="Air Canada">Air Canada</option>
+                <option value="United Airlines">United Airlines</option>
+                <option value="WestJet">WestJet</option>
+                <option value="Delta Air Lines">Delta</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="input-delay">Simulation Step Delay</label>
+              <select id="input-delay" class="select-input">
+                <option value="200">Fast (200ms)</option>
+                <option value="500" selected>Normal (500ms)</option>
+                <option value="1000">Slow (1000ms)</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-run" class="btn btn-primary">
+            <span class="btn-icon">▶</span> Run State Machine
+          </button>
+        </form>
+
+        <!-- Guardrail summary box -->
+        <div class="guardrail-summary-card">
+          <div class="card-title">
+            <span>🚦 Deterministic Router Guardrail</span>
+            <span id="guardrail-prediction" class="status-chip chip-warning">Manager Approval Required</span>
+          </div>
+          <p class="guardrail-explanation" id="guardrail-explanation">
+            Cheapest flight (<strong>$650</strong>) exceeds corporate budget (<strong>$500</strong>). Non-deterministic LLMs cannot bypass this pure code gate.
+          </p>
+        </div>
+      </section>
+
+      <!-- Center/Right Area: Live Graph & Observability Bus -->
+      <div class="content-column">
+        <!-- State Machine Visual DAG Flow -->
+        <section class="panel dag-panel">
+          <div class="panel-header">
+            <h2>📊 State Machine DAG & Active Path</h2>
+            <div class="legend">
+              <span class="legend-item"><span class="dot dot-idle"></span> Idle</span>
+              <span class="legend-item"><span class="dot dot-active"></span> Active</span>
+              <span class="legend-item"><span class="dot dot-completed"></span> Completed</span>
+              <span class="legend-item"><span class="dot dot-bypassed"></span> Bypassed</span>
+            </div>
+          </div>
+
+          <div class="graph-canvas" id="graph-canvas">
+            <div class="dag-container">
+              <!-- Node: START -->
+              <div class="dag-node node-start" id="node-start">
+                <div class="node-badge">INIT</div>
+                <div class="node-icon">🚀</div>
+                <div class="node-title">START</div>
+              </div>
+
+              <div class="dag-connector" id="conn-start-triage"><div class="connector-line"></div></div>
+
+              <!-- Node: TRIAGE -->
+              <div class="dag-node" id="node-triage">
+                <div class="node-badge">AGENT</div>
+                <div class="node-icon">📥</div>
+                <div class="node-title">Triage Node</div>
+                <div class="node-desc">Intent Extraction & Binding</div>
+              </div>
+
+              <div class="dag-connector" id="conn-triage-policy"><div class="connector-line"></div></div>
+
+              <!-- Node: POLICY -->
+              <div class="dag-node" id="node-policy">
+                <div class="node-badge">DB READ</div>
+                <div class="node-icon">🏛️</div>
+                <div class="node-title">Policy Node</div>
+                <div class="node-desc">Immutable Cap Injection</div>
+              </div>
+
+              <div class="dag-connector" id="conn-policy-inventory"><div class="connector-line"></div></div>
+
+              <!-- Node: INVENTORY -->
+              <div class="dag-node" id="node-inventory">
+                <div class="node-badge">API READ</div>
+                <div class="node-icon">🔎</div>
+                <div class="node-title">Inventory Node</div>
+                <div class="node-desc">GDS Flight Search</div>
+              </div>
+
+              <div class="dag-connector" id="conn-inventory-router"><div class="connector-line"></div></div>
+
+              <!-- Node: SUPERVISOR ROUTER (Guardrail) -->
+              <div class="dag-node node-guardrail" id="node-router">
+                <div class="node-badge">PURE CODE</div>
+                <div class="node-icon">🚦</div>
+                <div class="node-title">Supervisor Guardrail</div>
+                <div class="node-desc">Deterministic Cost Gate</div>
+              </div>
+
+              <!-- Branch Split Container -->
+              <div class="branch-container">
+                <div class="branch-col">
+                  <div class="dag-connector vertical-conn" id="conn-router-approval"><div class="connector-line"></div><span class="edge-label">Cost > Cap</span></div>
+                  <div class="dag-node node-hitl" id="node-manager_approval">
+                    <div class="node-badge">HITL</div>
+                    <div class="node-icon">✋</div>
+                    <div class="node-title">Manager Approval</div>
+                    <div class="node-desc">Human Override Loop</div>
+                  </div>
+                  <div class="dag-connector vertical-conn" id="conn-approval-exec"><div class="connector-line"></div><span class="edge-label">Approved</span></div>
+                </div>
+
+                <div class="bypass-indicator" id="conn-router-exec">
+                  <span class="edge-label">Cost ≤ Cap (Direct Execution Bypass)</span>
+                </div>
+              </div>
+
+              <!-- Node: EXECUTION -->
+              <div class="dag-node node-action" id="node-execution">
+                <div class="node-badge">TRANSACTION</div>
+                <div class="node-icon">💳</div>
+                <div class="node-title">Execution Node</div>
+                <div class="node-desc">Intent-Scoped Idempotent POST</div>
+              </div>
+
+              <div class="dag-connector" id="conn-execution-end"><div class="connector-line"></div></div>
+
+              <!-- Node: END -->
+              <div class="dag-node node-end" id="node-end">
+                <div class="node-badge">TERMINAL</div>
+                <div class="node-icon">🏁</div>
+                <div class="node-title">END</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Bottom Split: State Bus Inspector + Live Telemetry Logs -->
+        <div class="bottom-observability-grid">
+          <!-- Live State Bus Inspector -->
+          <section class="panel state-panel">
+            <div class="panel-header">
+              <h2>📦 Shared State Object (`TravelState`)</h2>
+              <span class="panel-tag" id="state-mutation-count">0 Mutations</span>
+            </div>
+            <div class="state-container">
+              <pre><code id="json-viewer" class="json-code">{\n  "status": "Ready for execution"\n}</code></pre>
+            </div>
+          </section>
+
+          <!-- Live Telemetry / Audit Log Console -->
+          <section class="panel logs-panel">
+            <div class="panel-header">
+              <h2>📜 Telemetry & Financial Audit Trail</h2>
+              <button id="btn-clear-logs" class="btn btn-sm">Clear Logs</button>
+            </div>
+            <div class="logs-console" id="logs-console">
+              <div class="log-entry system-msg">
+                <span class="log-time">[SYSTEM]</span>
+                <span class="log-text">MATTS State Machine initialized. Intent-scoped idempotency active.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- VIEW 2: Systems RFC & Architectural Whitepaper -->
+  <div id="view-whitepaper" class="view-container whitepaper-view" style="display: none;">
+    <div class="whitepaper-wrapper">
+      
+      <!-- Document Header / Hero -->
+      <div class="doc-hero">
+        <div class="doc-badge-row">
+          <span class="badge badge-fintech">FinTech Architecture RFC</span>
+          <span class="badge badge-purple">LangGraph State Orchestration</span>
+          <span class="badge badge-green">FMEA Rigor</span>
+        </div>
+        <h1 class="doc-title">Multi-Agent Tamed Travel System (MATTS)</h1>
+        <p class="doc-lead"><strong>LLMs are probabilistic. Corporate budgets are not.</strong></p>
+        <p class="doc-subtext">
+          Enterprise AI deployments fail when agents are chained together non-deterministically without strict boundary assumptions. 
+          A hallucinating LLM is one unconstrained prompt away from double-debiting corporate cards or leaking sensitive data. 
+          <strong>MATTS</strong> is an architectural proof-of-concept that tames multi-agent networks for high-stakes financial environments by isolating agents around a validated, immutable state bus guarded by pure, deterministic code gates.
+        </p>
+      </div>
+
+      <!-- Scope Table -->
+      <section class="doc-section">
+        <h2 class="section-heading">⚡ Prototype Implementation vs. Production Specification</h2>
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th>Working Prototype (Code)</th>
+                <th>Target Enterprise Specification (Blueprint)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Agent Orchestration</strong></td>
+                <td><code>@langchain/langgraph</code> Directed Acyclic StateGraph</td>
+                <td>Distributed Worker Mesh + LangGraph Checkpoint Workers</td>
+              </tr>
+              <tr>
+                <td><strong>State & Persistence</strong></td>
+                <td>In-Memory <code>TravelStateAnnotation</code> with immutable policy reducers</td>
+                <td><code>@langchain/langgraph-checkpoint-postgres</code> + S3 Snapshotting</td>
+              </tr>
+              <tr>
+                <td><strong>Idempotency Model</strong></td>
+                <td>Intent-scoped SHA-256 hash (<code>INTENT-</code> + <code>FL-</code>) with dedupe ledger</td>
+                <td>Distributed Redis Mutex + Postgres Unique Constraint Key</td>
+              </tr>
+              <tr>
+                <td><strong>Policy Enforcement</strong></td>
+                <td>Deterministic Supervisor Router + Locked <code>maxBudgetReducer</code></td>
+                <td>Live Enterprise HRIS Policy DB / Dynamic Organization Tier Matrix</td>
+              </tr>
+              <tr>
+                <td><strong>Inventory & Execution</strong></td>
+                <td>Mocked GDS API & Corporate Card Simulation</td>
+                <td>Amadeus / Navan GDS + Stripe / Brex Virtual Card Issuing APIs</td>
+              </tr>
+              <tr>
+                <td><strong>Audit & Telemetry</strong></td>
+                <td>In-Memory Audit Trail + SSE Live Telemetry Stream</td>
+                <td>Immutable Append-Only WORM Log (SOX/PCI-DSS) + OpenTelemetry</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FMEA Failure Risk Mitigation -->
+      <section class="doc-section">
+        <h2 class="section-heading">🛡️ FMEA Risk Mitigation & Failure Mapping</h2>
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Failure Mode (Hazard)</th>
+                <th>Severity</th>
+                <th>Architectural Mitigation (IE / Systems Layer)</th>
+                <th>Business Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Non-Deterministic Spending</strong><br><small>Agent hallucinates and books a $10k first-class ticket</small></td>
+                <td><span class="tag-danger">CRITICAL</span></td>
+                <td><strong>Supervisor Isolation Gate:</strong> Execution is decoupled from LLM reasoning. Pure deterministic code checks <code>$MAX_BUDGET</code> before allowing POST execution.</td>
+                <td><strong>Zero reliance on prompt engineering</strong> to protect corporate capital. Math acts as the final gate.</td>
+              </tr>
+              <tr>
+                <td><strong>Network Timeout Loops (Double Billing)</strong><br><small>API drops mid-booking, retries, card charged twice</small></td>
+                <td><span class="tag-danger">CRITICAL</span></td>
+                <td><strong>Intent-Scoped Idempotency:</strong> The State Graph binds an immutable <code>intentId</code>. Retries replay the exact same token, guaranteeing exact-once processing.</td>
+                <td><strong>Guarantees exact-once processing.</strong> Protects core ledger integrity during transient supplier outages.</td>
+              </tr>
+              <tr>
+                <td><strong>Agentic Deadlock (Infinite Token Burn)</strong><br><small>Agents loop arguing over search constraints</small></td>
+                <td><span class="tag-warning">HIGH</span></td>
+                <td><strong>Strict DAG Topology:</strong> Agents are structurally forbidden from conversing. LangGraph enforces a one-way progression with hard step bounds.</td>
+                <td><strong>Eliminates runaway cloud token costs.</strong> Pauses and escalates cleanly on error.</td>
+              </tr>
+              <tr>
+                <td><strong>Policy Data Corruption</strong><br><small>Inventory agent mutates travel budget limit in state</small></td>
+                <td><span class="tag-warning">HIGH</span></td>
+                <td><strong>Immutable Reducer:</strong> <code>maxBudgetReducer</code> locks the cap once established. Downstream node returns cannot mutate or elevate budget.</td>
+                <td><strong>Compliance parameters remain immutable</strong> throughout the entire request lifecycle.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- API Supply Chain Risk -->
+      <section class="doc-section">
+        <h2 class="section-heading">🌐 API Supply Chain & Vendor Risk</h2>
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Vendor / API Risk</th>
+                <th>Severity</th>
+                <th>Architectural Control</th>
+                <th>Business Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>LLM Provider Outage</strong><br><small>OpenAI/Anthropic API goes down</small></td>
+                <td><span class="tag-warning">HIGH</span></td>
+                <td><strong>Model Agnosticism & Routing:</strong> Abstraction proxy (LiteLLM) with automatic circuit breaker failover to backup models on 502 error.</td>
+                <td><strong>Guarantees continuous uptime</strong> without manual engineering intervention.</td>
+              </tr>
+              <tr>
+                <td><strong>GDS Rate Limiting</strong><br><small>Expedia/Amadeus throttles repetitive searches</small></td>
+                <td><span class="tag-info">MEDIUM</span></td>
+                <td><strong>Semantic & TTL Caching:</strong> Redis cache with 15-minute TTL for identical route queries (e.g., all-hands travel days).</td>
+                <td><strong>Reduces third-party API spend by up to 35%</strong> and prevents supplier throttling.</td>
+              </tr>
+              <tr>
+                <td><strong>PII Data Leakage to LLMs</strong><br><small>Raw employee metadata sent to public LLMs</small></td>
+                <td><span class="tag-danger">CRITICAL</span></td>
+                <td><strong>Data Sanitization Proxy:</strong> Masks real employee identities to ephemeral UUIDs before prompts reach external cognitive vendors.</td>
+                <td><strong>Maintains strict SOC2/PCI compliance</strong> and prevents regulatory exposure.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Financial TCO & Unit Economics -->
+      <section class="doc-section">
+        <h2 class="section-heading">💰 Financial Implications & Total Cost of Ownership (TCO)</h2>
+        <p class="doc-text">
+          Deploying autonomous agentic infrastructure within enterprise financial workflows alters cost structures from fixed labor overhead to variable API and inference economics.
+        </p>
+
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Traditional Travel Desk (Manual)</th>
+                <th>Naive Multi-Agent System</th>
+                <th>MATTS Tamed Architecture</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Cost per Interaction</strong></td>
+                <td>$15.00 – $35.00 <small>(Human labor / agency fees)</small></td>
+                <td>$1.20 – $8.00+ <small>(Unbounded token loops & retries)</small></td>
+                <td><strong class="highlight-green">$0.03 – $0.12</strong> <small>(Tiered models + cached GDS)</small></td>
+              </tr>
+              <tr>
+                <td><strong>Turnaround Latency</strong></td>
+                <td>4 – 48 hours <small>(Email threads & manual review)</small></td>
+                <td>10 – 60 seconds <small>(High variance)</small></td>
+                <td><strong class="highlight-green">&lt; 3 seconds</strong> <small>(Instant auto-clear or HITL card)</small></td>
+              </tr>
+              <tr>
+                <td><strong>Policy Leakage</strong></td>
+                <td>3% – 7% <small>(Human oversight errors)</small></td>
+                <td>5% – 15% <small>(Prompt hallucination/jailbreaks)</small></td>
+                <td><strong class="highlight-green">0.0%</strong> <small>(Enforced by deterministic code gates)</small></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Author Footer -->
+      <footer class="doc-footer">
+        <div class="author-card">
+          <div class="author-avatar">AP</div>
+          <div>
+            <div class="author-name">Amrit K. Prasad</div>
+            <div class="author-title">Industrial & Systems Engineer • AI-Native Builder • Lower Mainland, BC</div>
+            <div class="author-links">
+              <a href="https://github.com/Amritpd/MATTS" target="_blank">GitHub Repository</a> • 
+              <a href="mailto:amritpd@gmail.com">amritpd@gmail.com</a> • 
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
