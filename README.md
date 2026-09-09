@@ -14,16 +14,29 @@ The key difference here is that agents do not communicate directly. Instead, the
 
 <img width="1024" height="559" alt="MATTS Architecture Diagram" src="https://github.com/user-attachments/assets/1ad976e4-6c92-4017-a733-d6d37d731491" />
 
+### Prototype Implementation vs. Production Blueprint
+
+| Architectural Component | Working In This Prototype (Code) | Target Production Specification (Design Blueprint) |
+| :--- | :--- | :--- |
+| **Agent Orchestration** | `@langchain/langgraph` StateGraph | Distributed Worker Mesh + LangGraph Checkpointers |
+| **State & Persistence** | In-Memory `TravelStateAnnotation` with immutable reducers | `@langchain/langgraph-checkpoint-postgres` + S3 |
+| **Idempotency Model** | Intent-scoped deterministic hash (`INTENT-` + `FL-`) | Distributed Redis Mutex + Postgres Unique Constraint |
+| **Policy Guardrails** | Deterministic Supervisor Router + Immutable `$MAX_BUDGET` | Live HRIS Policy Database / Dynamic Tier Matrix |
+| **Inventory & Execution** | Mocked GDS & Virtual Card Ledger | Amadeus / Navan GDS + Virtual Card Issuing APIs |
+| **Audit & Observability** | Console Telemetry + SSE Live Dashboard | Immutable WORM Logs (SOX/PCI-DSS) + OpenTelemetry |
+
+---
 
 ## 🛡️ MATTS Risk Mitigation & Failure Mapping
 
 | Failure Mode (Risk) | Hazard Severity | Architectural Mitigation (IE/PM Layer) | Business Outcome |
 | :--- | :--- | :--- | :--- |
-| **Non-Deterministic Execution (Financial Loss)** | **CRITICAL**<br>*(Agent hallucinates and books a $10k first-class ticket).* | **Supervisor Isolation Gate:** Execution is decoupled from LLM reasoning. A pure deterministic script evaluates `$MAX_BUDGET` against the API cost before allowing a POST request. Sometimes rules-based algorithms can be used to determine the best flight option and it is best to start with simple solutions and work towards more complicated ones if need be. | **Zero reliance on "prompt engineering" to protect corporate funds.** Hard math acts as the final gate. |
-| **Network Timeout & Retry Loops (Double Billing)** | **CRITICAL**<br>*(API drops mid-booking, system retries, credit card charged twice).* | **Pre-Execution Idempotency:** The State Graph generates an `idempotency_key` (`Flight_ID` + `Timestamp`) before touching the Execution Node. | **Guarantees exact-once processing.** Protects the core ledger integrity during transient or intermittent system outages. |
-| **Agentic Deadlock (Infinite Token Burn)** | **HIGH**<br>*(Agents argue over constraints or enter infinite loop trying to fix a bad search).* | **Strict Directed Acyclic Graph (DAG):** Agents are structurally forbidden from conversing. LangGraph can be used to enforce a one-way state progression. This ensures no agent can double back to a previous state or jump to an unrelated state. | **Eliminates runaway cloud inference costs.** If an error occurs, the graph pauses and routes to a human. |
+| **Non-Deterministic Execution (Financial Loss)** | **CRITICAL**<br>*(Agent hallucinates and books a $10k first-class ticket).* | **Supervisor Isolation Gate:** Execution is decoupled from LLM reasoning. A pure deterministic script evaluates `$MAX_BUDGET` against the API cost before allowing a POST request. Rules-based algorithms gate financial execution with absolute certainty. | **Zero reliance on "prompt engineering" to protect corporate funds.** Hard math acts as the final gate. |
+| **Network Timeout & Retry Loops (Double Billing)** | **CRITICAL**<br>*(API drops mid-booking, system retries, credit card charged twice).* | **Intent-Scoped Idempotency:** The State Graph binds an immutable `intentId` to the commercial request. Retries replay the exact same idempotency token, guaranteeing ledger deduplication without re-charging. | **Guarantees exact-once processing.** Protects the core ledger integrity during transient or intermittent system outages. |
+| **Agentic Deadlock (Infinite Token Burn)** | **HIGH**<br>*(Agents argue over constraints or enter infinite loop trying to fix a bad search).* | **Strict Directed Acyclic Graph (DAG):** Agents are structurally forbidden from conversing. LangGraph enforces a one-way state progression. This ensures no agent can double back to a previous state or jump to an unrelated state. | **Eliminates runaway cloud inference costs.** If an error occurs, the graph pauses and routes to a human. |
 | **Vague Parameter Injection (Garbage In / Garbage Out)** | **MEDIUM**<br>*(User says "Book NY", missing dates and airports, burning downstream API limits).* | **Triage Validation Loop:** The initial LLM node is constrained to a strict JSON schema. If origin, destination, or date are missing, it halts and pings the user. | **Preserves API rate limits (Navan/Expedia)** and ensures downstream agents only receive sanitized, actionable data. |
-| **Policy Data Corruption** | **HIGH**<br>*(Inventory agent accidentally overwrites the employee's travel tier in the shared state).* | **Read-Only State Reducers:** The `$MAX_BUDGET` variable is injected by the Policy Node and locked. Downstream agents only have "read" privileges for that parameter. | **Ensures compliance constraints are immutable** once established in the workflow. |
+| **Policy Data Corruption** | **HIGH**<br>*(Inventory agent accidentally overwrites the employee's travel tier in the shared state).* | **Immutable Policy Reducer:** The `$MAX_BUDGET` parameter is injected by the Policy Node and locked by a pure reducer. Downstream nodes cannot overwrite or elevate the spending cap. | **Ensures compliance constraints are immutable** once established in the workflow. |
+
 
 ---
 

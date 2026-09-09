@@ -1,12 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { supervisorRouter } from "../../src/router.js";
-import { generateIdempotencyKey } from "../../src/nodes/execution.js";
-import { TravelState } from "../../src/state.js";
+import { executionNode, generateIdempotencyKey, clearLedgerCache } from "../../src/nodes/execution.js";
+import { TravelState, TravelStateAnnotation, maxBudgetReducer } from "../../src/state.js";
 
 describe("Regression Tests: FinTech Guardrails & Boundary Conditions", () => {
+  beforeEach(() => {
+    clearLedgerCache();
+  });
+
   const templateState: TravelState = {
+    intentId: "INTENT-REG-100",
     userInput: "Book flight",
-    parsedRequest: { origin: "YVR", destination: "SFO", date: "2026-10-15" },
+    parsedRequest: { intentId: "INTENT-REG-100", origin: "YVR", destination: "SFO", date: "2026-10-15" },
     maxBudget: 500,
     flightOptions: [],
     approvalStatus: "PENDING",
@@ -85,18 +90,48 @@ describe("Regression Tests: FinTech Guardrails & Boundary Conditions", () => {
     });
   });
 
-  describe("Financial Idempotency Invariants", () => {
-    it("REGRESSION: High-frequency sequential charges generate distinct idempotency keys per millisecond tick", () => {
-      const keys = new Set<string>();
-      const iterations = 100;
+  describe("Financial Idempotency & Deduplication Invariants", () => {
+    it("REGRESSION: Retrying execution with the same intentId replays identical booking ID (Exact-Once / Zero Double Billing)", async () => {
+      const executionState: TravelState = {
+        ...templateState,
+        intentId: "INTENT-STABLE-UUID-001",
+        flightOptions: [{ id: "FL-500-DL", cost: 450, airline: "Delta" }],
+        approvalStatus: "APPROVED",
+      };
 
-      for (let i = 0; i < iterations; i++) {
-        // simulate distinct timestamps
-        const key = generateIdempotencyKey("FL-IDEMP-TEST", 1700000000000 + i);
-        keys.add(key);
-      }
+      // First run: Creates booking
+      const firstRun = await executionNode(executionState);
+      expect(firstRun.finalBookingId).toBeDefined();
 
-      expect(keys.size).toBe(iterations);
+      // Second run (simulating retry after transient network timeout)
+      const secondRun = await executionNode(executionState);
+      
+      // Must replay EXACT same booking ID, not create a new one
+      expect(secondRun.finalBookingId).toBe(firstRun.finalBookingId);
+    });
+
+    it("REGRESSION: Different intentIds produce distinct idempotency keys", () => {
+      const key1 = generateIdempotencyKey("INTENT-USER-A", "FL-100");
+      const key2 = generateIdempotencyKey("INTENT-USER-B", "FL-100");
+
+      expect(key1).not.toBe(key2);
     });
   });
+
+  describe("Policy Immutability Reducer Invariants", () => {
+    it("REGRESSION: maxBudget reducer rejects downstream overwrite attempts once established", () => {
+      const originalBudget = 500;
+      // Downstream node attempts to inject higher budget $10,000
+      const corruptedAttempt = maxBudgetReducer(originalBudget, 10000);
+
+      expect(corruptedAttempt).toBe(500); // Must remain $500!
+    });
+
+    it("REGRESSION: maxBudget reducer accepts initial budget assignment when prev is 0", () => {
+      const initialAssignment = maxBudgetReducer(0, 500);
+      expect(initialAssignment).toBe(500);
+    });
+  });
+
 });
+

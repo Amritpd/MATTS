@@ -1,4 +1,5 @@
 export interface ParsedRequest {
+  intentId?: string;
   origin: string;
   destination: string;
   date: string;
@@ -13,6 +14,7 @@ export interface FlightOption {
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface TravelStateType {
+  intentId: string;
   userInput: string;
   parsedRequest: ParsedRequest;
   maxBudget: number;
@@ -20,3 +22,4 @@ export interface TravelStateType {
   approvalStatus: string;
   finalBookingId: string | null;
 }
+

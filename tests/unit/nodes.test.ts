@@ -1,27 +1,39 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { triageNode } from "../../src/nodes/triage.js";
 import { policyNode } from "../../src/nodes/policy.js";
 import { inventoryNode } from "../../src/nodes/inventory.js";
 import { managerApprovalNode } from "../../src/nodes/manager-approval.js";
-import { executionNode, generateIdempotencyKey } from "../../src/nodes/execution.js";
+import { executionNode, generateIdempotencyKey, clearLedgerCache } from "../../src/nodes/execution.js";
 import { TravelState } from "../../src/state.js";
 
 describe("Unit Tests: Isolated Node Handlers", () => {
+  beforeEach(() => {
+    clearLedgerCache();
+  });
+
   const baseState: TravelState = {
+    intentId: "INTENT-TEST-123",
     userInput: "Book a flight from YVR to SFO",
-    parsedRequest: { origin: "", destination: "", date: "" },
+    parsedRequest: { intentId: "INTENT-TEST-123", origin: "", destination: "", date: "" },
     maxBudget: 0,
     flightOptions: [],
     approvalStatus: "PENDING",
     finalBookingId: null,
   };
 
-  it("triageNode should parse natural language userInput into structured search parameters", async () => {
-    const delta = await triageNode(baseState);
+  it("triageNode should parse natural language userInput into structured search parameters and assign deterministic intentId", async () => {
+    const delta = await triageNode({
+      ...baseState,
+      intentId: "",
+      userInput: "Please book flight from SEA to JFK on 2026-11-20",
+    });
+
+    expect(delta.intentId).toBeDefined();
+    expect(delta.intentId).toMatch(/^INTENT-[A-F0-9]{12}$/);
     expect(delta.parsedRequest).toBeDefined();
-    expect(delta.parsedRequest?.origin).toBe("YVR");
-    expect(delta.parsedRequest?.destination).toBe("SFO");
-    expect(delta.parsedRequest?.date).toBe("2026-10-15");
+    expect(delta.parsedRequest?.origin).toBe("SEA");
+    expect(delta.parsedRequest?.destination).toBe("JFK");
+    expect(delta.parsedRequest?.date).toBe("2026-11-20");
   });
 
   it("policyNode should return the corporate compliance maximum budget limit", async () => {
@@ -52,7 +64,7 @@ describe("Unit Tests: Isolated Node Handlers", () => {
     expect(delta.approvalStatus).toBe("APPROVED");
   });
 
-  it("executionNode should generate idempotency token, charge card, and return booking ID", async () => {
+  it("executionNode should generate intent-scoped idempotency token, charge card, and return booking ID", async () => {
     const approvedState: TravelState = {
       ...baseState,
       maxBudget: 500,
@@ -66,13 +78,14 @@ describe("Unit Tests: Isolated Node Handlers", () => {
     expect(delta.finalBookingId).toMatch(/^BK-[A-F0-9]{8}-FL-650-AC$/);
   });
 
-  it("generateIdempotencyKey should generate consistent SHA-256 hashed keys for same input", () => {
-    const key1 = generateIdempotencyKey("FL-100", 1700000000000);
-    const key2 = generateIdempotencyKey("FL-100", 1700000000000);
-    const key3 = generateIdempotencyKey("FL-200", 1700000000000);
+  it("generateIdempotencyKey should generate deterministic SHA-256 hashed keys for the same intent and flight", () => {
+    const key1 = generateIdempotencyKey("INTENT-ABC", "FL-100");
+    const key2 = generateIdempotencyKey("INTENT-ABC", "FL-100");
+    const key3 = generateIdempotencyKey("INTENT-XYZ", "FL-100");
 
-    expect(key1).toBe(key2);
-    expect(key1).not.toBe(key3);
+    expect(key1).toBe(key2); // Exact same key across retries
+    expect(key1).not.toBe(key3); // Different intent yields different key
     expect(key1).toMatch(/^IDEMP-[A-F0-9]{16}$/);
   });
 });
+

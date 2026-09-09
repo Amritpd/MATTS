@@ -14,7 +14,7 @@ describe("Integration Tests: MATTS StateGraph Full LifeCycle", () => {
 
     // Assert complete traversal
     expect(finalState.userInput).toBe(initialState.userInput);
-    expect(finalState.parsedRequest).toEqual({
+    expect(finalState.parsedRequest).toMatchObject({
       origin: "YVR",
       destination: "SFO",
       date: "2026-10-15",
