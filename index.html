@@ -485,22 +485,19 @@
                 <td><strong>Cost per Interaction</strong></td>
                 <td>$15.00 – $35.00 <small>(Human labor / agency fees)</small></td>
                 <td>$1.20 – $8.00+ <small>(Unbounded token loops & retries)</small></td>
-                <td><strong class="highlight-green">$0.03 – $0.12</strong> <small>(Tiered models + cached GDS)</small>
-                </td>
+                <td><strong class="highlight-green">$0.20 – $0.85</strong> <small>(Tiered models + cached GDS)</small></td>
               </tr>
               <tr>
                 <td><strong>Turnaround Latency</strong></td>
                 <td>4 – 48 hours <small>(Email threads & manual review)</small></td>
-                <td>10 – 60 seconds <small>(High variance)</small></td>
-                <td><strong class="highlight-green">&lt; 3 seconds</strong> <small>(Instant auto-clear or HITL
-                    card)</small></td>
+                <td>1 – 15 minutes <small>(Conversational loops & high variance)</small></td>
+                <td><strong class="highlight-green">1 – 2 minutes</strong> <small>(Deterministic DAG + instant HITL card)</small></td>
               </tr>
               <tr>
                 <td><strong>Policy Leakage</strong></td>
                 <td>3% – 7% <small>(Human oversight errors)</small></td>
                 <td>5% – 15% <small>(Prompt hallucination/jailbreaks)</small></td>
-                <td><strong class="highlight-green">0.0%</strong> <small>(Enforced by deterministic code gates)</small>
-                </td>
+                <td><strong class="highlight-green">0.0%</strong> <small>(Enforced by deterministic code gates)</small></td>
               </tr>
             </tbody>
           </table>

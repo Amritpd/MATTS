@@ -318,8 +318,8 @@ The true financial justification for MATTS lies in **tail-risk elimination**. In
 
 | Metric | Traditional Travel Desk (Manual) | Naive Multi-Agent System | MATTS Tamed Architecture |
 | :--- | :--- | :--- | :--- |
-| **Cost per Booking Interaction** | $15.00 – $35.00 *(Human labor / agent fees)* | $1.20 – $8.00+ *(Unbounded token churn & retries)* | **$0.03 – $0.12** *(Optimized tokens + cached GDS)* |
-| **Turnaround Latency** | 4 – 48 hours *(Email chains & manual approvals)* | 10 – 60 seconds *(High variance, risk of loop)* | **< 3 seconds** *(Immediate approval or instant HITL card)* |
+| **Cost per Booking Interaction** | $15.00 – $35.00 *(Human labor / agent fees)* | $1.20 – $8.00+ *(Unbounded token churn & retries)* | **$0.20 – $0.85** *(Tiered models + cached GDS searches)* |
+| **Turnaround Latency** | 4 – 48 hours *(Email chains & manual approvals)* | 1 – 15 minutes *(Conversational loops, retry latency)* | **1 – 2 minutes** *(Deterministic DAG flow + instant HITL card)* |
 | **Policy Violation Leakage** | 3% – 7% *(Human oversight / manual errors)* | 5% – 15% *(Prompt injection / hallucination)* | **0.0%** *(Enforced by deterministic code gates)* |
 | **Cost-to-Serve Scalability** | Linear ($O(N)$ with headcount growth) | High & unpredictable (Token volatility) | **Sub-linear ($O(\log N)$ via caching & DAG routing)** |
 
@@ -328,10 +328,10 @@ The true financial justification for MATTS lies in **tail-risk elimination**. In
 ### 4. Executive ROI Summary
 
 ```
-                       Traditional Model          MATTS Architecture
-Processing Cost:       [████████████████████] $25.00   [█] $0.08
-Policy Breach Risk:    [█████] 5.0%                    [] 0.0%
-Resolution Time:       [████████████████████] 24 hrs   [█] 3 secs
+                       Traditional Model          Naive Multi-Agent        MATTS Architecture
+Processing Cost:       [████████████████████] $25.00   [█████] $4.50            [█] $0.45
+Policy Breach Risk:    [█████] 5.0%                    [████████] 10.0%         [] 0.0%
+Resolution Time:       [████████████████████] 24 hrs   [████] 5 mins            [█] 1–2 mins
 ```
 
 By substituting expensive human ticketing queues and unpredictable open-ended LLM loops with a deterministic, state-guarded pipeline, MATTS delivers an estimated **95%+ reduction in operational transaction overhead** while completely insulating the company from probabilistic financial loss.
