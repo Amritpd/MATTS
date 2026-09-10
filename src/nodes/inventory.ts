@@ -6,6 +6,11 @@ import { FlightOption } from "../types.js";
  * By default returns a single $650 flight to trigger supervisor approval guardrail.
  */
 export async function inventoryNode(state: TravelState): Promise<Partial<TravelState>> {
+  if (state.error || state.parsedRequest?.isValid === false || !state.parsedRequest?.origin) {
+    console.log(`\n[🔎 Inventory Node] Bypassing GDS API query: upstream validation error (${state.error || "missing route"}).`);
+    return { flightOptions: [] };
+  }
+
   console.log(`\n[🔎 Inventory Node] Querying GDS API for ${state.parsedRequest.origin || "YVR"} -> ${state.parsedRequest.destination || "SFO"}...`);
   
   // Default mock inventory (Single option exceeding the $500 cap to test approval loop)

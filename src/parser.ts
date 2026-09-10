@@ -194,20 +194,31 @@ export function parseDate(text: string, defaultDate = "2026-10-15"): string {
   return defaultDate;
 }
 
+export interface ParseResult {
+  origin: string;
+  destination: string;
+  date: string;
+  isValid: boolean;
+  errorMessage?: string | null;
+}
+
 /**
  * Intelligent natural language parser extracting origin, destination, and departure date.
+ * Validates whether meaningful airport/city tokens were extracted.
  */
 export function parseNaturalLanguageInput(
   input: string,
-  fallbackOrigin = "YVR",
-  fallbackDestination = "SFO",
+  fallbackOrigin = "",
+  fallbackDestination = "",
   fallbackDate = "2026-10-15"
-): { origin: string; destination: string; date: string } {
+): ParseResult {
   if (!input || !input.trim()) {
     return {
       origin: fallbackOrigin,
       destination: fallbackDestination,
       date: fallbackDate,
+      isValid: false,
+      errorMessage: "Empty or blank input request",
     };
   }
 
@@ -245,7 +256,34 @@ export function parseNaturalLanguageInput(
   const destination = rawDestination ? normalizeLocation(rawDestination) : fallbackDestination;
   const date = parseDate(text, fallbackDate);
 
-  return { origin, destination, date };
+  // Validation checks:
+  if (!origin || !destination || origin.length < 3 || destination.length < 3) {
+    return {
+      origin,
+      destination,
+      date,
+      isValid: false,
+      errorMessage: `Could not identify valid origin and destination airports in "${text}"`,
+    };
+  }
+
+  if (origin === destination) {
+    return {
+      origin,
+      destination,
+      date,
+      isValid: false,
+      errorMessage: `Origin (${origin}) and destination (${destination}) cannot be identical`,
+    };
+  }
+
+  return {
+    origin,
+    destination,
+    date,
+    isValid: true,
+    errorMessage: null,
+  };
 }
 
 /**
@@ -261,19 +299,27 @@ export function parseTriageRequest(
   userInput: string,
   existingParsed?: Partial<ParsedRequest>
 ): ParsedRequest {
-  const extracted = parseNaturalLanguageInput(
-    userInput,
-    existingParsed?.origin || "YVR",
-    existingParsed?.destination || "SFO",
-    existingParsed?.date || "2026-10-15"
-  );
+  const result = parseNaturalLanguageInput(userInput);
 
-  const intentId = generateIntentId(extracted.origin, extracted.destination, extracted.date);
+  if (!result.isValid) {
+    return {
+      intentId: "INTENT-INVALID-REQUEST",
+      origin: result.origin,
+      destination: result.destination,
+      date: result.date,
+      isValid: false,
+      errorMessage: result.errorMessage,
+    };
+  }
+
+  const intentId = generateIntentId(result.origin, result.destination, result.date);
 
   return {
     intentId,
-    origin: extracted.origin,
-    destination: extracted.destination,
-    date: extracted.date,
+    origin: result.origin,
+    destination: result.destination,
+    date: result.date,
+    isValid: true,
+    errorMessage: null,
   };
 }

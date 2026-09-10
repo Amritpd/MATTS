@@ -32,6 +32,11 @@ export function generateIdempotencyKey(intentId: string, flightId: string): stri
 export async function executionNode(state: TravelState): Promise<Partial<TravelState>> {
   console.log("\n[💳 Execution Node] Initializing financial transaction...");
   
+  if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT" || !state.flightOptions || state.flightOptions.length === 0) {
+    console.log(`[💳 Execution Node] 🚫 Execution Aborted: Zero card authorization permitted due to state error (${state.error || "No valid inventory"}).`);
+    return { finalBookingId: null };
+  }
+
   const selectedFlight = state.flightOptions[0];
   const flightId = selectedFlight?.id ?? "FL-UNKNOWN";
   const intentId = state.intentId || state.parsedRequest?.intentId || "INTENT-DEFAULT";

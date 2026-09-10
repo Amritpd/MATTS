@@ -11,8 +11,10 @@ export type SupervisorRoute = "manager_approval" | "execution";
  * - If cheapest flight <= maxBudget OR approvalStatus === "APPROVED" -> "execution"
  */
 export function supervisorRouter(state: TravelState): SupervisorRoute {
-  if (!state.flightOptions || state.flightOptions.length === 0) {
-    throw new Error("[Guardrail Violation] No flight options available to evaluate.");
+  // If state has an error or rejected input, route to execution where transaction will be cleanly aborted
+  if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT" || !state.flightOptions || state.flightOptions.length === 0) {
+    console.log("\n[🚦 Supervisor Router] 🚨 Policy Violation / Invalid Input: No executable flight options found. Routing directly to execution to abort charge.");
+    return "execution";
   }
 
   const cheapestCost = Math.min(...state.flightOptions.map((f) => f.cost));

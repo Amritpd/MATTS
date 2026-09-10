@@ -105,11 +105,36 @@ const server = http.createServer(async (req, res) => {
             if (stepDelay > 0) await sleep(stepDelay);
 
             const parsedRequest = parseTriageRequest(state.userInput, state.parsedRequest);
+            const durationMs = Math.round(performance.now() - start);
+
+            if (!parsedRequest.isValid) {
+              const delta = {
+                intentId: "INTENT-INVALID",
+                parsedRequest,
+                error: `TRIAGE_VALIDATION_ERROR: ${parsedRequest.errorMessage}`,
+                approvalStatus: "REJECTED_INVALID_INPUT",
+                flightOptions: [],
+              };
+              const fullState = { ...state, ...delta };
+
+              sendEvent("node_complete", {
+                node: "triage",
+                title: "Triage Node",
+                status: "error",
+                timestamp: new Date().toISOString(),
+                durationMs,
+                log: `❌ Schema Validation Failure: "${state.userInput}" is unparseable (${parsedRequest.errorMessage}). Commercial intent rejected.`,
+                stateDelta: delta,
+                fullState,
+              } as StepEvent);
+
+              return delta;
+            }
+
             const intentId = state.intentId || parsedRequest.intentId || "INTENT-UNKNOWN";
             parsedRequest.intentId = intentId;
 
-            const durationMs = Math.round(performance.now() - start);
-            const delta = { intentId, parsedRequest };
+            const delta = { intentId, parsedRequest, error: null };
             const fullState = { ...state, ...delta };
 
             sendEvent("node_complete", {
@@ -130,6 +155,25 @@ const server = http.createServer(async (req, res) => {
             const start = performance.now();
             sendEvent("node_start", { node: "policy", title: "Policy Node" });
             if (stepDelay > 0) await sleep(stepDelay);
+
+            if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT") {
+              const durationMs = Math.round(performance.now() - start);
+              const delta = { maxBudget: 0 };
+              const fullState = { ...state, ...delta };
+
+              sendEvent("node_complete", {
+                node: "policy",
+                title: "Policy Node",
+                status: "bypassed",
+                timestamp: new Date().toISOString(),
+                durationMs,
+                log: `Policy lookup skipped: Input request is marked invalid (${state.error}).`,
+                stateDelta: delta,
+                fullState,
+              } as StepEvent);
+
+              return delta;
+            }
 
             const maxBudget = config.maxBudget ?? 500;
             const durationMs = Math.round(performance.now() - start);
@@ -154,6 +198,34 @@ const server = http.createServer(async (req, res) => {
             const start = performance.now();
             sendEvent("node_start", { node: "inventory", title: "Inventory Node" });
             if (stepDelay > 0) await sleep(stepDelay);
+
+            if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT") {
+              const durationMs = Math.round(performance.now() - start);
+              const delta = { flightOptions: [] };
+              const fullState = { ...state, ...delta };
+
+              sendEvent("node_complete", {
+                node: "inventory",
+                title: "Inventory Node",
+                status: "bypassed",
+                timestamp: new Date().toISOString(),
+                durationMs,
+                log: `⚠️ GDS Inventory Query Bypassed: Refusing external API query on unvalidated input.`,
+                stateDelta: delta,
+                fullState,
+              } as StepEvent);
+
+              sendEvent("supervisor_eval", {
+                cheapestCost: 0,
+                maxBudget: 0,
+                approvalStatus: "REJECTED_INVALID_INPUT",
+                isOverBudget: false,
+                action: "execution",
+                reason: "Input validation error. Routing directly to execution to halt charge.",
+              });
+
+              return delta;
+            }
 
             const cost = config.flightCost ?? 650;
             const airline = config.flightAirline ?? (cost > 500 ? "Air Canada" : "WestJet");
@@ -191,6 +263,10 @@ const server = http.createServer(async (req, res) => {
           },
 
           manager_approval: async (state: TravelState) => {
+            if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT") {
+              return {};
+            }
+
             managerApprovalInvoked = true;
             const start = performance.now();
             sendEvent("node_start", { node: "manager_approval", title: "Manager Approval Node" });
@@ -218,6 +294,25 @@ const server = http.createServer(async (req, res) => {
             const start = performance.now();
             sendEvent("node_start", { node: "execution", title: "Execution Node" });
             if (stepDelay > 0) await sleep(stepDelay);
+
+            if (state.error || state.approvalStatus === "REJECTED_INVALID_INPUT" || !state.flightOptions || state.flightOptions.length === 0) {
+              const durationMs = Math.round(performance.now() - start);
+              const delta = { finalBookingId: null };
+              const fullState = { ...state, ...delta };
+
+              sendEvent("node_complete", {
+                node: "execution",
+                title: "Execution Node",
+                status: "bypassed",
+                timestamp: new Date().toISOString(),
+                durationMs,
+                log: `🚫 Virtual Card Authorization BLOCKED: Zero charges made to corporate ledger (${state.error || "No valid inventory"}).`,
+                stateDelta: delta,
+                fullState,
+              } as StepEvent);
+
+              return delta;
+            }
 
             const selectedFlight = state.flightOptions[0] || { id: "FL-MOCK", cost: 0, airline: "N/A" };
             const durationMs = Math.round(performance.now() - start);
@@ -252,9 +347,11 @@ const server = http.createServer(async (req, res) => {
         sendEvent("done", {
           finalState,
           managerApprovalInvoked,
-          success: true,
+          success: !finalState.error && Boolean(finalState.finalBookingId),
           timestamp: new Date().toISOString(),
         });
+
+        res.end();
 
         res.end();
       } catch (err: unknown) {

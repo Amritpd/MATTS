@@ -41,6 +41,10 @@ export const TravelStateAnnotation = Annotation.Root({
     reducer: (_, next) => next,
     default: () => null,
   }),
+  error: Annotation<string | null>({
+    reducer: (_, next) => next,
+    default: () => null,
+  }),
 });
 
 export type TravelState = typeof TravelStateAnnotation.State;
