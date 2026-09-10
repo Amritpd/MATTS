@@ -135,13 +135,22 @@ export function normalizeLocation(locStr: string): string {
     }
   }
 
-  // If 3 letters, assume IATA code
+  // Common English stop words that happen to be 3 letters
+  const stopWords = new Set(["the", "and", "for", "out", "via", "way", "one", "get", "any", "all", "new", "day", "you", "not", "how", "who", "why", "now", "are"]);
+
+  // If exact 3-letter word, assume IATA code
+  const exactMatch = cleaned.match(/^([a-z]{3})$/i);
+  if (exactMatch && !stopWords.has(exactMatch[1].toLowerCase())) {
+    return exactMatch[1].toUpperCase();
+  }
+
+  // If contains a 3-letter code word surrounded by whitespace/boundaries
   const codeMatch = cleaned.match(/\b([a-z]{3})\b/i);
-  if (codeMatch) {
+  if (codeMatch && !stopWords.has(codeMatch[1].toLowerCase())) {
     return codeMatch[1].toUpperCase();
   }
 
-  return cleaned.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 3);
+  return "";
 }
 
 /**
@@ -233,7 +242,7 @@ export function parseNaturalLanguageInput(
   const toFromMatch = text.match(/\b(?:to|heading to|flying to)\s+([A-Za-z\s()]{2,25}?)\s+from\s+([A-Za-z\s()]{2,25}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
 
   // Pattern C: "[Origin] to [Destination]" or "[Origin] -> [Destination]" or "[Origin] - [Destination]"
-  const arrowMatch = text.match(/\b([A-Za-z\s()]{2,20}?)\s*(?:->|-->|=>|to|-)\s*([A-Za-z\s()]{2,20}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
+  const arrowMatch = text.match(/\b([A-Za-z\s()]{2,20}?)\s+(?:->|-->|=>|to|-)\s+([A-Za-z\s()]{2,20}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
 
   if (fromToMatch) {
     rawOrigin = fromToMatch[1];
@@ -302,6 +311,21 @@ export function parseTriageRequest(
   const result = parseNaturalLanguageInput(userInput);
 
   if (!result.isValid) {
+    if (existingParsed?.origin && existingParsed?.destination) {
+      const origin = existingParsed.origin;
+      const destination = existingParsed.destination;
+      const date = existingParsed.date || "2026-10-15";
+      const intentId = generateIntentId(origin, destination, date);
+      return {
+        intentId,
+        origin,
+        destination,
+        date,
+        isValid: true,
+        errorMessage: null,
+      };
+    }
+
     return {
       intentId: "INTENT-INVALID-REQUEST",
       origin: result.origin,

@@ -87,11 +87,34 @@ describe("Integration Tests: MATTS StateGraph Full LifeCycle", () => {
     });
 
     const finalState = await app.invoke({
-      userInput: "Find and book cheapest flight",
+      userInput: "Find and book cheapest flight from YVR to SFO",
     }) as TravelState;
 
     expect(mockApprovalSpy).not.toHaveBeenCalled();
     expect(finalState.approvalStatus).toBe("PENDING");
     expect(finalState.finalBookingId).toBe("BK-TEST-FL-COMPLIANT");
+  });
+
+  it("INTEGRATION: Junk or unparseable input aborts execution with state error and zero ledger charges", async () => {
+    const mockExecutionSpy = vi.fn();
+
+    const app = buildMattsGraph({
+      execution: async (state: TravelState) => {
+        if (state.error) {
+          mockExecutionSpy();
+          return { finalBookingId: null };
+        }
+        return { finalBookingId: "BK-SHOULD-NOT-HAPPEN" };
+      },
+    });
+
+    const finalState = await app.invoke({
+      userInput: "gibberish junk with no route",
+    }) as TravelState;
+
+    expect(finalState.error).toContain("TRIAGE_VALIDATION_ERROR");
+    expect(finalState.approvalStatus).toBe("REJECTED_INVALID_INPUT");
+    expect(finalState.finalBookingId).toBeNull();
+    expect(mockExecutionSpy).toHaveBeenCalled();
   });
 });

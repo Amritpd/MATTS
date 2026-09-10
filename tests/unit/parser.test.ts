@@ -55,6 +55,29 @@ describe("Unit Tests: Smart Natural Language Request Parser", () => {
     expect(res.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it("detects and flags junk input (e.g. 'asdfghjkl' or 'banana potato helicopter')", () => {
+    const res1 = parseNaturalLanguageInput("asdfghjkl");
+    expect(res1.isValid).toBe(false);
+    expect(res1.errorMessage).toBeDefined();
+
+    const res2 = parseNaturalLanguageInput("banana potato helicopter");
+    expect(res2.isValid).toBe(false);
+    expect(res2.errorMessage).toBeDefined();
+  });
+
+  it("detects and flags identical origin and destination (e.g. 'fly from SFO to SFO')", () => {
+    const res = parseNaturalLanguageInput("fly from SFO to SFO");
+    expect(res.isValid).toBe(false);
+    expect(res.errorMessage).toContain("identical");
+  });
+
+  it("parseTriageRequest returns INTENT-INVALID-REQUEST and isValid: false for junk", () => {
+    const parsed = parseTriageRequest("random gibberish with no route");
+    expect(parsed.isValid).toBe(false);
+    expect(parsed.intentId).toBe("INTENT-INVALID-REQUEST");
+    expect(parsed.errorMessage).toBeDefined();
+  });
+
   it("generates deterministic intentId bound to extracted route", () => {
     const parsed1 = parseTriageRequest("flight from SFO to YVR on 2026-10-15");
     const parsed2 = parseTriageRequest("flight from SFO to YVR on 2026-10-15");

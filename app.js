@@ -292,9 +292,19 @@ document.addEventListener("DOMContentLoaded", () => {
       if (regex.test(cleaned)) return code;
     }
 
+    const stopWords = new Set(["the", "and", "for", "out", "via", "way", "one", "get", "any", "all", "new", "day", "you", "not", "how", "who", "why", "now", "are"]);
+
+    const exactMatch = cleaned.match(/^([a-z]{3})$/i);
+    if (exactMatch && !stopWords.has(exactMatch[1].toLowerCase())) {
+      return exactMatch[1].toUpperCase();
+    }
+
     const codeMatch = cleaned.match(/\b([a-z]{3})\b/i);
-    if (codeMatch) return codeMatch[1].toUpperCase();
-    return cleaned.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 3);
+    if (codeMatch && !stopWords.has(codeMatch[1].toLowerCase())) {
+      return codeMatch[1].toUpperCase();
+    }
+
+    return "";
   }
 
   function parseClientDate(text, defaultDate = "2026-10-15") {
@@ -328,6 +338,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function parseClientNaturalLanguage(input) {
     const text = (input || "").trim();
+    if (!text) {
+      return { origin: "", destination: "", date: "2026-10-15", isValid: false, errorMessage: "Empty prompt" };
+    }
+
     let rawOrigin = "";
     let rawDestination = "";
 
@@ -351,11 +365,31 @@ document.addEventListener("DOMContentLoaded", () => {
       if (toMatch) rawDestination = toMatch[1];
     }
 
-    const origin = rawOrigin ? normalizeClientLocation(rawOrigin) : "YVR";
-    const destination = rawDestination ? normalizeClientLocation(rawDestination) : "SFO";
+    const origin = rawOrigin ? normalizeClientLocation(rawOrigin) : "";
+    const destination = rawDestination ? normalizeClientLocation(rawDestination) : "";
     const date = parseClientDate(text, "2026-10-15");
 
-    return { origin, destination, date };
+    if (!origin || !destination || origin.length < 3 || destination.length < 3) {
+      return {
+        origin,
+        destination,
+        date,
+        isValid: false,
+        errorMessage: `Could not identify valid origin and destination in "${text}"`,
+      };
+    }
+
+    if (origin === destination) {
+      return {
+        origin,
+        destination,
+        date,
+        isValid: false,
+        errorMessage: `Origin (${origin}) and destination (${destination}) cannot be identical`,
+      };
+    }
+
+    return { origin, destination, date, isValid: true, errorMessage: null };
   }
 
   async function runClientSideSimulation(payload) {
@@ -365,23 +399,95 @@ document.addEventListener("DOMContentLoaded", () => {
     handleServerEvent("node_start", { node: "triage", title: "Triage & Intent Parser" });
     await sleep(delay);
 
-    const { origin, destination, date: departureDate } = parseClientNaturalLanguage(payload.userInput);
+    const parsed = parseClientNaturalLanguage(payload.userInput);
+
+    if (!parsed.isValid) {
+      let state = {
+        userInput: payload.userInput,
+        intentId: "INTENT-INVALID",
+        parsedRequest: { origin: parsed.origin, destination: parsed.destination, date: parsed.date, isValid: false, errorMessage: parsed.errorMessage },
+        maxBudget: 0,
+        flightOptions: [],
+        approvalStatus: "REJECTED_INVALID_INPUT",
+        finalBookingId: null,
+        error: `TRIAGE_VALIDATION_ERROR: ${parsed.errorMessage}`,
+      };
+
+      handleServerEvent("node_complete", {
+        node: "triage",
+        title: "Triage & Intent Parser",
+        status: "error",
+        log: `❌ Schema Validation Failure: "${payload.userInput}" is unparseable (${parsed.errorMessage}). Commercial intent rejected.`,
+        durationMs: 38,
+        fullState: state
+      });
+
+      await sleep(delay);
+      handleServerEvent("node_start", { node: "policy", title: "Policy Guardrail" });
+      await sleep(delay / 2);
+      handleServerEvent("node_complete", {
+        node: "policy",
+        title: "Policy Guardrail",
+        status: "bypassed",
+        log: `Policy lookup skipped: Input request is marked invalid (${state.error}).`,
+        durationMs: 5,
+        fullState: state
+      });
+
+      await sleep(delay / 2);
+      handleServerEvent("node_start", { node: "inventory", title: "GDS Inventory Aggregator" });
+      await sleep(delay / 2);
+      handleServerEvent("node_complete", {
+        node: "inventory",
+        title: "GDS Inventory Aggregator",
+        status: "bypassed",
+        log: `⚠️ GDS Inventory Query Bypassed: Refusing external API query on unvalidated input.`,
+        durationMs: 8,
+        fullState: state
+      });
+
+      handleServerEvent("supervisor_eval", {
+        action: "execution",
+        cheapestCost: 0,
+        maxBudget: 0
+      });
+
+      await sleep(delay / 2);
+      handleServerEvent("node_start", { node: "execution", title: "Deterministic Execution Node" });
+      await sleep(delay / 2);
+      handleServerEvent("node_complete", {
+        node: "execution",
+        title: "Deterministic Execution Node",
+        status: "bypassed",
+        log: `🚫 Virtual Card Authorization BLOCKED: Zero charges made to corporate ledger (${state.error}).`,
+        durationMs: 12,
+        fullState: state
+      });
+
+      await sleep(delay / 2);
+      handleServerEvent("done", { finalState: state, success: false });
+      return;
+    }
+
+    const { origin, destination, date: departureDate } = parsed;
     const intentHash = Math.abs((origin + destination + departureDate).split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)).toString(16).toUpperCase().padStart(8, '0');
     const intentId = `INTENT-${intentHash}`;
 
     let state = {
       userInput: payload.userInput,
       intentId,
-      parsedRequest: { origin, destination, date: departureDate },
+      parsedRequest: { origin, destination, date: departureDate, isValid: true, errorMessage: null },
       maxBudget: 0,
       flightOptions: [],
       approvalStatus: "PENDING",
       finalBookingId: null,
+      error: null,
     };
 
     handleServerEvent("node_complete", {
       node: "triage",
       title: "Triage & Intent Parser",
+      status: "completed",
       log: `Structured intent bound: ${origin} → ${destination} (${departureDate}) [${intentId}]`,
       durationMs: 42,
       fullState: state
@@ -395,6 +501,7 @@ document.addEventListener("DOMContentLoaded", () => {
     handleServerEvent("node_complete", {
       node: "policy",
       title: "Policy Guardrail",
+      status: "completed",
       log: `Corporate budget ceiling verified and sealed at $${state.maxBudget}`,
       durationMs: 18,
       fullState: state
@@ -411,6 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
     handleServerEvent("node_complete", {
       node: "inventory",
       title: "GDS Inventory Aggregator",
+      status: "completed",
       log: `GDS returned route ${origin} -> ${destination}: ${flightId} (${payload.flightAirline}) @ $${payload.flightCost}`,
       durationMs: 94,
       fullState: state
@@ -433,6 +541,7 @@ document.addEventListener("DOMContentLoaded", () => {
       handleServerEvent("node_complete", {
         node: "manager_approval",
         title: "Manager HITL Gate",
+        status: "completed",
         log: `Manager override received: Approved $${payload.flightCost} policy override`,
         durationMs: 310,
         fullState: state
@@ -448,6 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
     handleServerEvent("node_complete", {
       node: "execution",
       title: "Deterministic Execution Node",
+      status: "completed",
       log: `Authorized corporate card for $${payload.flightCost}. Confirmed PNR: ${bookingId}`,
       durationMs: 145,
       fullState: state
@@ -455,7 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 6. Complete
     await sleep(delay / 2);
-    handleServerEvent("done", { finalState: state });
+    handleServerEvent("done", { finalState: state, success: true });
   }
 
   function handleServerEvent(event, data) {
@@ -469,7 +579,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const nodeEl = nodes[data.node];
       if (nodeEl) {
         nodeEl.classList.remove("active");
-        nodeEl.classList.add("completed");
+        if (data.status === "bypassed" || data.status === "error") {
+          nodeEl.classList.add("bypassed");
+        } else {
+          nodeEl.classList.add("completed");
+        }
       }
 
       // Update State Object Viewer
@@ -477,7 +591,8 @@ document.addEventListener("DOMContentLoaded", () => {
       stateMutationCount.textContent = `${mutationCount} Mutation${mutationCount > 1 ? "s" : ""}`;
       jsonViewer.textContent = JSON.stringify(data.fullState, null, 2);
 
-      addLog(`[${data.title}] ${data.log} (${data.durationMs}ms)`, "node-complete");
+      const logType = data.status === "error" ? "guardrail-alert" : data.status === "bypassed" ? "system-msg" : "node-complete";
+      addLog(`[${data.title}] ${data.log} (${data.durationMs}ms)`, logType);
 
       // Mark connectors
       if (data.node === "triage") {
@@ -496,7 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (data.node === "execution") {
         connectors["approval-exec"].classList.add("completed");
         connectors["execution-end"].classList.add("active");
-        nodes.end.classList.add("completed");
+        nodes.end.classList.add(data.fullState?.error ? "bypassed" : "completed");
       }
     } else if (event === "supervisor_eval") {
       nodes.router.classList.remove("active");
@@ -507,15 +622,23 @@ document.addEventListener("DOMContentLoaded", () => {
         connectors["router-approval"].classList.add("active");
         nodes.manager_approval.classList.remove("bypassed");
       } else {
-        addLog(`[🚦 Supervisor Router] Spending compliant: $${data.cheapestCost} <= $${data.maxBudget}. Direct execution bypass triggered.`, "success-msg");
+        if (data.reason && data.reason.includes("validation")) {
+          addLog(`[🚦 Supervisor Router] 🚨 Abort Routing: Input validation failed. Skipping approval and routing to safety abort.`, "guardrail-alert");
+        } else {
+          addLog(`[🚦 Supervisor Router] Spending compliant: $${data.cheapestCost} <= $${data.maxBudget}. Direct execution bypass triggered.`, "success-msg");
+        }
         connectors["router-exec"].classList.add("visible");
         nodes.manager_approval.classList.add("bypassed");
       }
     } else if (event === "done") {
       nodes.start.classList.add("completed");
-      nodes.end.classList.add("completed");
+      nodes.end.classList.add(data.finalState?.error ? "bypassed" : "completed");
       connectors["execution-end"].classList.add("completed");
-      addLog(`State machine finished. Booking transaction sealed with ID: ${data.finalState.finalBookingId}`, "success-msg");
+      if (data.finalState?.error || data.success === false) {
+        addLog(`🚨 Flow Terminated with Errors: ${data.finalState?.error}. Zero financial exposure. Virtual card charge aborted.`, "guardrail-alert");
+      } else {
+        addLog(`State machine finished. Booking transaction sealed with ID: ${data.finalState.finalBookingId}`, "success-msg");
+      }
     }
   }
 

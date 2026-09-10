@@ -133,5 +133,31 @@ describe("Regression Tests: FinTech Guardrails & Boundary Conditions", () => {
     });
   });
 
+  describe("Input Validation & Financial Abort Invariants", () => {
+    it("REGRESSION: Execution node refuses to charge virtual card when state has error or rejected input", async () => {
+      const errorState: TravelState = {
+        ...templateState,
+        error: "TRIAGE_VALIDATION_ERROR: Could not identify valid origin and destination",
+        approvalStatus: "REJECTED_INVALID_INPUT",
+        flightOptions: [],
+      };
+
+      const delta = await executionNode(errorState);
+      expect(delta.finalBookingId).toBeNull();
+    });
+
+    it("REGRESSION: Supervisor router routes error state safely to execution to abort rather than crashing", () => {
+      const errorState: TravelState = {
+        ...templateState,
+        error: "TRIAGE_VALIDATION_ERROR: Invalid route",
+        approvalStatus: "REJECTED_INVALID_INPUT",
+        flightOptions: [],
+      };
+
+      const route = supervisorRouter(errorState);
+      expect(route).toBe("execution");
+    });
+  });
 });
+
 
