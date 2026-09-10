@@ -307,22 +307,75 @@ document.addEventListener("DOMContentLoaded", () => {
     return "";
   }
 
+  const DAY_OF_WEEK_MAP = {
+    sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2,
+    wednesday: 3, wed: 3, thursday: 4, thu: 4, thur: 4, thurs: 4,
+    friday: 5, fri: 5, saturday: 6, sat: 6
+  };
+
   function parseClientDate(text, defaultDate = "2026-10-15") {
     if (!text) return defaultDate;
-    const isoMatch = text.match(/\b(\d{4})[-/](\d{2})[-/](\d{2})\b/);
-    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-    const usDateMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
-    if (usDateMatch) return `${usDateMatch[3]}-${usDateMatch[1].padStart(2, "0")}-${usDateMatch[2].padStart(2, "0")}`;
-    const namedMonthMatch = text.match(/\b(?:on\s+)?(\d{1,2})?\s*(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})?(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i);
+
+    // 1. ISO format: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+    const isoMatch = text.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+    }
+
+    // 2. US format: MM/DD/YYYY or MM-DD-YYYY
+    const usDateMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/);
+    if (usDateMatch) {
+      return `${usDateMatch[3]}-${usDateMatch[1].padStart(2, "0")}-${usDateMatch[2].padStart(2, "0")}`;
+    }
+
+    // 3. "15th of October 2026" or "15 Oct 2027"
+    const ofMonthMatch = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:,?\s*(\d{4}))?\b/i);
+    if (ofMonthMatch) {
+      const dayStr = ofMonthMatch[1].padStart(2, "0");
+      const monthNum = MONTH_MAP[ofMonthMatch[2].toLowerCase()] || "10";
+      const yearStr = ofMonthMatch[3] || "2026";
+      return `${yearStr}-${monthNum}-${dayStr}`;
+    }
+
+    // 4. Month name first: "Oct 15", "October 15, 2026", "Nov 20"
+    const namedMonthMatch = text.match(/\b(?:on\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i);
     if (namedMonthMatch) {
-      const dayStr = namedMonthMatch[1] || namedMonthMatch[3] || "15";
-      const monthName = namedMonthMatch[2].toLowerCase();
-      const yearStr = namedMonthMatch[4] || "2026";
-      const monthNum = MONTH_MAP[monthName] || "10";
-      const dayNum = parseInt(dayStr, 10).toString().padStart(2, "0");
+      const monthNum = MONTH_MAP[namedMonthMatch[1].toLowerCase()] || "10";
+      const dayNum = namedMonthMatch[2].padStart(2, "0");
+      const yearStr = namedMonthMatch[3] || "2026";
       return `${yearStr}-${monthNum}-${dayNum}`;
     }
+
     const now = new Date(2026, 9, 15);
+
+    // 5. In X days / in X weeks
+    const inDaysMatch = text.match(/\bin\s+(\d{1,2})\s+days?\b/i);
+    if (inDaysMatch) {
+      const target = new Date(now);
+      target.setDate(target.getDate() + parseInt(inDaysMatch[1], 10));
+      return target.toISOString().split("T")[0];
+    }
+    const inWeeksMatch = text.match(/\bin\s+(\d{1,2})\s+weeks?\b/i);
+    if (inWeeksMatch) {
+      const target = new Date(now);
+      target.setDate(target.getDate() + parseInt(inWeeksMatch[1], 10) * 7);
+      return target.toISOString().split("T")[0];
+    }
+
+    // 6. Next [DayOfWeek]
+    const dayOfWeekMatch = text.match(/\b(?:next|this)\s+(sunday|sun|monday|mon|tuesday|tue|tues|wednesday|wed|thursday|thu|thur|thurs|friday|fri|saturday|sat)\b/i);
+    if (dayOfWeekMatch) {
+      const targetDay = DAY_OF_WEEK_MAP[dayOfWeekMatch[1].toLowerCase()];
+      if (targetDay !== undefined) {
+        let diff = targetDay - now.getDay();
+        if (diff <= 0) diff += 7;
+        const target = new Date(now);
+        target.setDate(target.getDate() + diff);
+        return target.toISOString().split("T")[0];
+      }
+    }
+
+    if (/\btoday\b/i.test(text)) return now.toISOString().split("T")[0];
     if (/\btomorrow\b/i.test(text)) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -332,6 +385,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const nextWeek = new Date(now);
       nextWeek.setDate(nextWeek.getDate() + 7);
       return nextWeek.toISOString().split("T")[0];
+    }
+    if (/\bnext\s+month\b/i.test(text)) {
+      const nextMonth = new Date(now);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      return nextMonth.toISOString().split("T")[0];
     }
     return defaultDate;
   }

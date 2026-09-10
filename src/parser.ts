@@ -153,42 +153,102 @@ export function normalizeLocation(locStr: string): string {
   return "";
 }
 
+const DAY_OF_WEEK_MAP: Record<string, number> = {
+  sunday: 0, sun: 0,
+  monday: 1, mon: 1,
+  tuesday: 2, tue: 2, tues: 2,
+  wednesday: 3, wed: 3,
+  thursday: 4, thu: 4, thur: 4, thurs: 4,
+  friday: 5, fri: 5,
+  saturday: 6, sat: 6,
+};
+
 /**
  * Parses date string or expressions into YYYY-MM-DD format.
  */
 export function parseDate(text: string, defaultDate = "2026-10-15"): string {
   if (!text) return defaultDate;
 
-  // 1. ISO format: YYYY-MM-DD or YYYY/MM/DD
-  const isoMatch = text.match(/\b(\d{4})[-/](\d{2})[-/](\d{2})\b/);
+  // 1. ISO format: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+  const isoMatch = text.match(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/);
   if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    const month = isoMatch[2].padStart(2, "0");
+    const day = isoMatch[3].padStart(2, "0");
+    return `${isoMatch[1]}-${month}-${day}`;
   }
 
-  // 2. US format: MM/DD/YYYY
-  const usDateMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  // 2. US format: MM/DD/YYYY or MM-DD-YYYY
+  const usDateMatch = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b/);
   if (usDateMatch) {
     const month = usDateMatch[1].padStart(2, "0");
     const day = usDateMatch[2].padStart(2, "0");
     return `${usDateMatch[3]}-${month}-${day}`;
   }
 
-  // 3. Named month: e.g. "Oct 15", "October 15, 2026", "15 Oct 2026", "Nov 20"
-  const namedMonthMatch = text.match(
-    /\b(?:on\s+)?(\d{1,2})?\s*(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})?(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i
+  // 3. "15th of October 2026" or "15 Oct 2027" or "October 15th, 2026"
+  const ofMonthMatch = text.match(
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:,?\s*(\d{4}))?\b/i
   );
 
-  if (namedMonthMatch) {
-    const dayStr = namedMonthMatch[1] || namedMonthMatch[3] || "15";
-    const monthName = namedMonthMatch[2].toLowerCase();
-    const yearStr = namedMonthMatch[4] || "2026";
+  if (ofMonthMatch) {
+    const dayStr = ofMonthMatch[1];
+    const monthName = ofMonthMatch[2].toLowerCase();
+    const yearStr = ofMonthMatch[3] || "2026";
     const monthNum = MONTH_MAP[monthName] || "10";
     const dayNum = parseInt(dayStr, 10).toString().padStart(2, "0");
     return `${yearStr}-${monthNum}-${dayNum}`;
   }
 
-  // 4. Relative terms: tomorrow, next week, next month
-  const now = new Date(2026, 9, 15); // Base reference date
+  // 4. Month name first: "Oct 15", "October 15, 2026", "Nov 20th"
+  const namedMonthMatch = text.match(
+    /\b(?:on\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i
+  );
+
+  if (namedMonthMatch) {
+    const monthName = namedMonthMatch[1].toLowerCase();
+    const dayStr = namedMonthMatch[2];
+    const yearStr = namedMonthMatch[3] || "2026";
+    const monthNum = MONTH_MAP[monthName] || "10";
+    const dayNum = parseInt(dayStr, 10).toString().padStart(2, "0");
+    return `${yearStr}-${monthNum}-${dayNum}`;
+  }
+
+  // 5. Relative terms: in X days, in X weeks
+  const inDaysMatch = text.match(/\bin\s+(\d{1,2})\s+days?\b/i);
+  const now = new Date(2026, 9, 15); // Base reference date for deterministic simulation: 2026-10-15
+  if (inDaysMatch) {
+    const offset = parseInt(inDaysMatch[1], 10);
+    const target = new Date(now);
+    target.setDate(target.getDate() + offset);
+    return target.toISOString().split("T")[0];
+  }
+
+  const inWeeksMatch = text.match(/\bin\s+(\d{1,2})\s+weeks?\b/i);
+  if (inWeeksMatch) {
+    const offset = parseInt(inWeeksMatch[1], 10) * 7;
+    const target = new Date(now);
+    target.setDate(target.getDate() + offset);
+    return target.toISOString().split("T")[0];
+  }
+
+  // 6. Next [DayOfWeek] (e.g. "next Friday", "this Saturday")
+  const dayOfWeekMatch = text.match(/\b(?:next|this)\s+(sunday|sun|monday|mon|tuesday|tue|tues|wednesday|wed|thursday|thu|thur|thurs|friday|fri|saturday|sat)\b/i);
+  if (dayOfWeekMatch) {
+    const targetDay = DAY_OF_WEEK_MAP[dayOfWeekMatch[1].toLowerCase()];
+    if (targetDay !== undefined) {
+      const currentDay = now.getDay();
+      let diff = targetDay - currentDay;
+      if (diff <= 0) diff += 7;
+      const target = new Date(now);
+      target.setDate(target.getDate() + diff);
+      return target.toISOString().split("T")[0];
+    }
+  }
+
+  // 7. Simple relative keywords: today, tomorrow, next week, next month
+  if (/\btoday\b/i.test(text)) {
+    return now.toISOString().split("T")[0];
+  }
   if (/\btomorrow\b/i.test(text)) {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -198,6 +258,11 @@ export function parseDate(text: string, defaultDate = "2026-10-15"): string {
     const nextWeek = new Date(now);
     nextWeek.setDate(nextWeek.getDate() + 7);
     return nextWeek.toISOString().split("T")[0];
+  }
+  if (/\bnext\s+month\b/i.test(text)) {
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    return nextMonth.toISOString().split("T")[0];
   }
 
   return defaultDate;
