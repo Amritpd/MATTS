@@ -231,35 +231,151 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Canonical mapping of major cities and metros to primary IATA airport codes
+  const CITY_TO_IATA = {
+    "san francisco": "SFO", "sf": "SFO", "bay area": "SFO", "sfo": "SFO",
+    "vancouver": "YVR", "yvr": "YVR",
+    "new york": "JFK", "new york city": "JFK", "nyc": "JFK", "jfk": "JFK", "laguardia": "LGA", "lga": "LGA", "newark": "EWR", "ewr": "EWR",
+    "seattle": "SEA", "sea": "SEA",
+    "los angeles": "LAX", "la": "LAX", "lax": "LAX",
+    "chicago": "ORD", "ord": "ORD", "midway": "MDW",
+    "toronto": "YYZ", "yyz": "YYZ",
+    "london": "LHR", "heathrow": "LHR", "lhr": "LHR", "gatwick": "LGW",
+    "tokyo": "HND", "haneda": "HND", "hnd": "HND", "narita": "NRT", "nrt": "NRT",
+    "paris": "CDG", "cdg": "CDG", "orly": "ORY",
+    "miami": "MIA", "mia": "MIA",
+    "dallas": "DFW", "dfw": "DFW",
+    "atlanta": "ATL", "atl": "ATL",
+    "boston": "BOS", "bos": "BOS",
+    "denver": "DEN", "den": "DEN",
+    "austin": "AUS", "aus": "AUS",
+    "las vegas": "LAS", "vegas": "LAS", "las": "LAS",
+    "honolulu": "HNL", "hawaii": "HNL", "hnl": "HNL",
+    "montreal": "YUL", "yul": "YUL",
+    "calgary": "YYC", "yyc": "YYC",
+    "frankfurt": "FRA", "fra": "FRA",
+    "amsterdam": "AMS", "ams": "AMS",
+    "dubai": "DXB", "dxb": "DXB",
+    "singapore": "SIN", "sin": "SIN",
+    "sydney": "SYD", "syd": "SYD",
+    "washington": "IAD", "dc": "IAD", "iad": "IAD",
+    "houston": "IAH", "iah": "IAH",
+    "phoenix": "PHX", "phx": "PHX",
+    "san diego": "SAN", "san": "SAN",
+    "orlando": "MCO", "mco": "MCO",
+    "portland": "PDX", "pdx": "PDX",
+    "berlin": "BER", "ber": "BER",
+    "rome": "FCO", "fco": "FCO",
+    "madrid": "MAD", "mad": "MAD",
+    "hong kong": "HKG", "hkg": "HKG",
+    "seoul": "ICN", "icn": "ICN",
+    "cancun": "CUN", "cun": "CUN"
+  };
+
+  const MONTH_MAP = {
+    jan: "01", january: "01", feb: "02", february: "02", mar: "03", march: "03",
+    apr: "04", april: "04", may: "05", jun: "06", june: "06", jul: "07", july: "07",
+    aug: "08", august: "08", sep: "09", sept: "09", september: "09", oct: "10", october: "10",
+    nov: "11", november: "11", dec: "12", december: "12"
+  };
+
+  function normalizeClientLocation(locStr) {
+    if (!locStr) return "";
+    let cleaned = locStr.trim().toLowerCase().replace(/[(),]/g, " ");
+    cleaned = cleaned.replace(/\b(tomorrow|today|tonight|next\s+\w+|on|for|cheap|cheapest|flights?|tickets?|please|date|dep|arr|book|booking|fly|find|leaving|heading|arriving)\b/gi, " ").trim();
+    cleaned = cleaned.replace(/\s+/g, " ");
+
+    if (CITY_TO_IATA[cleaned]) return CITY_TO_IATA[cleaned];
+
+    for (const [cityName, code] of Object.entries(CITY_TO_IATA)) {
+      const regex = new RegExp(`\\b${cityName}\\b`, "i");
+      if (regex.test(cleaned)) return code;
+    }
+
+    const codeMatch = cleaned.match(/\b([a-z]{3})\b/i);
+    if (codeMatch) return codeMatch[1].toUpperCase();
+    return cleaned.replace(/[^a-z]/gi, "").toUpperCase().slice(0, 3);
+  }
+
+  function parseClientDate(text, defaultDate = "2026-10-15") {
+    if (!text) return defaultDate;
+    const isoMatch = text.match(/\b(\d{4})[-/](\d{2})[-/](\d{2})\b/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    const usDateMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if (usDateMatch) return `${usDateMatch[3]}-${usDateMatch[1].padStart(2, "0")}-${usDateMatch[2].padStart(2, "0")}`;
+    const namedMonthMatch = text.match(/\b(?:on\s+)?(\d{1,2})?\s*(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{1,2})?(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?\b/i);
+    if (namedMonthMatch) {
+      const dayStr = namedMonthMatch[1] || namedMonthMatch[3] || "15";
+      const monthName = namedMonthMatch[2].toLowerCase();
+      const yearStr = namedMonthMatch[4] || "2026";
+      const monthNum = MONTH_MAP[monthName] || "10";
+      const dayNum = parseInt(dayStr, 10).toString().padStart(2, "0");
+      return `${yearStr}-${monthNum}-${dayNum}`;
+    }
+    const now = new Date(2026, 9, 15);
+    if (/\btomorrow\b/i.test(text)) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split("T")[0];
+    }
+    if (/\bnext\s+week\b/i.test(text)) {
+      const nextWeek = new Date(now);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      return nextWeek.toISOString().split("T")[0];
+    }
+    return defaultDate;
+  }
+
+  function parseClientNaturalLanguage(input) {
+    const text = (input || "").trim();
+    let rawOrigin = "";
+    let rawDestination = "";
+
+    const fromToMatch = text.match(/\bfrom\s+([A-Za-z\s()]{2,25}?)\s+to\s+([A-Za-z\s()]{2,25}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
+    const toFromMatch = text.match(/\b(?:to|heading to|flying to)\s+([A-Za-z\s()]{2,25}?)\s+from\s+([A-Za-z\s()]{2,25}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
+    const arrowMatch = text.match(/\b([A-Za-z\s()]{2,20}?)\s*(?:->|-->|=>|to|-)\s*([A-Za-z\s()]{2,20}?)(?=\s+on|\s+for|\s+date|\s+dep|\s+tomorrow|\s+today|\s+next|\s*$|[.,;])/i);
+
+    if (fromToMatch) {
+      rawOrigin = fromToMatch[1];
+      rawDestination = fromToMatch[2];
+    } else if (toFromMatch) {
+      rawDestination = toFromMatch[1];
+      rawOrigin = toFromMatch[2];
+    } else if (arrowMatch) {
+      rawOrigin = arrowMatch[1];
+      rawDestination = arrowMatch[2];
+    } else {
+      const fromMatch = text.match(/\bfrom\s+([A-Za-z]{3,20})\b/i);
+      const toMatch = text.match(/\bto\s+([A-Za-z]{3,20})\b/i);
+      if (fromMatch) rawOrigin = fromMatch[1];
+      if (toMatch) rawDestination = toMatch[1];
+    }
+
+    const origin = rawOrigin ? normalizeClientLocation(rawOrigin) : "YVR";
+    const destination = rawDestination ? normalizeClientLocation(rawDestination) : "SFO";
+    const date = parseClientDate(text, "2026-10-15");
+
+    return { origin, destination, date };
+  }
+
   async function runClientSideSimulation(payload) {
     const delay = payload.stepDelayMs || 600;
-    const text = payload.userInput || "";
     
     // 1. Triage Extraction
     handleServerEvent("node_start", { node: "triage", title: "Triage & Intent Parser" });
     await sleep(delay);
 
-    let origin = "YVR";
-    let destination = "SFO";
-    let departureDate = "2026-10-15";
-
-    const originMatch = text.match(/\b(?:from|leaving)\s+([A-Za-z\s]{3,20}?)(?=\s+to|\s+on|\s*$)/i);
-    const destMatch = text.match(/\b(?:to|heading to)\s+([A-Za-z\s]{3,20}?)(?=\s+on|\s+for|\s*$)/i);
-    const dateMatch = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
-
-    if (originMatch) origin = originMatch[1].trim().toUpperCase();
-    if (destMatch) destination = destMatch[1].trim().toUpperCase();
-    if (dateMatch) departureDate = dateMatch[1];
-
-    const intentId = `INTENT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    const { origin, destination, date: departureDate } = parseClientNaturalLanguage(payload.userInput);
+    const intentHash = Math.abs((origin + destination + departureDate).split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)).toString(16).toUpperCase().padStart(8, '0');
+    const intentId = `INTENT-${intentHash}`;
 
     let state = {
       userInput: payload.userInput,
       intentId,
-      parsedRequest: { origin, destination, departureDate },
+      parsedRequest: { origin, destination, date: departureDate },
       maxBudget: 0,
       flightOptions: [],
-      approvalStatus: "NOT_REQUIRED",
+      approvalStatus: "PENDING",
       finalBookingId: null,
     };
 
@@ -288,14 +404,14 @@ document.addEventListener("DOMContentLoaded", () => {
     await sleep(delay);
     handleServerEvent("node_start", { node: "inventory", title: "GDS Inventory Aggregator" });
     await sleep(delay);
+    const flightId = `FL-${payload.flightCost}-${(payload.flightAirline || 'AIR').slice(0, 2).toUpperCase()}`;
     state.flightOptions = [
-      { id: "FL-101", airline: payload.flightAirline, cost: payload.flightCost, departure: "08:30" },
-      { id: "FL-204", airline: "Delta Air Lines", cost: payload.flightCost + 85, departure: "14:15" },
+      { id: flightId, airline: payload.flightAirline, cost: payload.flightCost },
     ];
     handleServerEvent("node_complete", {
       node: "inventory",
       title: "GDS Inventory Aggregator",
-      log: `Retrieved 2 live quotes. Best available: ${payload.flightAirline} @ $${payload.flightCost}`,
+      log: `GDS returned route ${origin} -> ${destination}: ${flightId} (${payload.flightAirline}) @ $${payload.flightCost}`,
       durationMs: 94,
       fullState: state
     });
@@ -313,11 +429,11 @@ document.addEventListener("DOMContentLoaded", () => {
       await sleep(delay);
       handleServerEvent("node_start", { node: "manager_approval", title: "Manager HITL Gate" });
       await sleep(delay);
-      state.approvalStatus = "APPROVED_BY_MANAGER";
+      state.approvalStatus = "APPROVED";
       handleServerEvent("node_complete", {
         node: "manager_approval",
         title: "Manager HITL Gate",
-        log: `Manager override received: Approved $${payload.flightCost} for business critical travel`,
+        log: `Manager override received: Approved $${payload.flightCost} policy override`,
         durationMs: 310,
         fullState: state
       });
@@ -325,14 +441,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 5. Deterministic Execution
     await sleep(delay);
-    handleServerEvent("node_start", { node: "execution", title: "Deterministic Money Plane" });
+    handleServerEvent("node_start", { node: "execution", title: "Deterministic Execution Node" });
     await sleep(delay);
-    const bookingId = `BK-BREX-${Math.floor(100000 + Math.random() * 900000)}`;
+    const bookingId = `BK-${Math.random().toString(36).substring(2, 10).toUpperCase()}-${flightId}`;
     state.finalBookingId = bookingId;
     handleServerEvent("node_complete", {
       node: "execution",
-      title: "Deterministic Money Plane",
-      log: `Virtual card tokenized and charged $${payload.flightCost}. Ledger booking ref: ${bookingId}`,
+      title: "Deterministic Execution Node",
+      log: `Authorized corporate card for $${payload.flightCost}. Confirmed PNR: ${bookingId}`,
       durationMs: 145,
       fullState: state
     });

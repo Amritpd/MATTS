@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { buildMattsGraph } from "./graph.js";
 import { TravelState } from "./state.js";
 import { FlightOption } from "./types.js";
+import { parseTriageRequest } from "./parser.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,15 +104,12 @@ const server = http.createServer(async (req, res) => {
             sendEvent("node_start", { node: "triage", title: "Triage Node" });
             if (stepDelay > 0) await sleep(stepDelay);
 
-            const origin = state.userInput.includes("SFO") ? "YVR" : "JFK";
-            const parsedRequest = {
-              origin,
-              destination: "SFO",
-              date: "2026-10-15",
-            };
+            const parsedRequest = parseTriageRequest(state.userInput, state.parsedRequest);
+            const intentId = state.intentId || parsedRequest.intentId || "INTENT-UNKNOWN";
+            parsedRequest.intentId = intentId;
 
             const durationMs = Math.round(performance.now() - start);
-            const delta = { parsedRequest };
+            const delta = { intentId, parsedRequest };
             const fullState = { ...state, ...delta };
 
             sendEvent("node_complete", {
@@ -120,7 +118,7 @@ const server = http.createServer(async (req, res) => {
               status: "completed",
               timestamp: new Date().toISOString(),
               durationMs,
-              log: `LLM extracted flight intent: ${parsedRequest.origin} -> ${parsedRequest.destination} on ${parsedRequest.date}`,
+              log: `LLM extracted commercial intent [${intentId}]: ${parsedRequest.origin} -> ${parsedRequest.destination} on ${parsedRequest.date}`,
               stateDelta: delta,
               fullState,
             } as StepEvent);
@@ -166,13 +164,16 @@ const server = http.createServer(async (req, res) => {
             const delta = { flightOptions };
             const fullState = { ...state, ...delta };
 
+            const origin = fullState.parsedRequest?.origin || "YVR";
+            const destination = fullState.parsedRequest?.destination || "SFO";
+
             sendEvent("node_complete", {
               node: "inventory",
               title: "Inventory Node",
               status: "completed",
               timestamp: new Date().toISOString(),
               durationMs,
-              log: `GDS API returned option: ${id} (${airline}) at $${cost}.`,
+              log: `GDS API returned option for ${origin} -> ${destination}: ${id} (${airline}) at $${cost}.`,
               stateDelta: delta,
               fullState,
             } as StepEvent);

@@ -4,6 +4,7 @@ import { buildMattsGraph } from "../src/graph.js";
 import { TravelState } from "../src/state.js";
 import { FlightOption } from "../src/types.js";
 import { generateIdempotencyKey } from "../src/nodes/execution.js";
+import { parseTriageRequest } from "../src/parser.js";
 
 interface SimulationRequest {
   userInput?: string;
@@ -89,20 +90,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           sendEvent("node_start", { node: "triage", title: "Triage Node" });
           if (stepDelay > 0) await sleep(stepDelay);
 
-          const input = state.userInput || "";
-          const routeMatch = input.match(/\bfrom\s+([A-Z]{3})\s+to\s+([A-Z]{3})\b/i) || 
-                             input.match(/\b([A-Z]{3})\s*(?:to|->)\s*([A-Z]{3})\b/i);
-          const dateMatch = input.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+          const parsedRequest = parseTriageRequest(state.userInput, state.parsedRequest);
+          const intentId = state.intentId || parsedRequest.intentId || "INTENT-UNKNOWN";
+          parsedRequest.intentId = intentId;
 
-          const origin = routeMatch ? routeMatch[1].toUpperCase() : (state.parsedRequest.origin || "YVR");
-          const destination = routeMatch ? routeMatch[2].toUpperCase() : (state.parsedRequest.destination || "SFO");
-          const date = dateMatch ? dateMatch[1] : (state.parsedRequest.date || "2026-10-15");
-
-          const intentRaw = `intent:${origin}:${destination}:${date}`;
-          const intentHash = crypto.createHash("sha256").update(intentRaw).digest("hex").slice(0, 12).toUpperCase();
-          const intentId = state.intentId || `INTENT-${intentHash}`;
-
-          const parsedRequest = { intentId, origin, destination, date };
           const durationMs = Math.round(performance.now() - start);
           const delta = { intentId, parsedRequest };
           const fullState = { ...state, ...delta };
@@ -159,13 +150,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
           const delta = { flightOptions };
           const fullState = { ...state, ...delta };
 
+          const origin = fullState.parsedRequest?.origin || "YVR";
+          const destination = fullState.parsedRequest?.destination || "SFO";
+
           sendEvent("node_complete", {
             node: "inventory",
             title: "Inventory Node",
             status: "completed",
             timestamp: new Date().toISOString(),
             durationMs,
-            log: `GDS API returned option: ${id} (${airline}) at $${cost}.`,
+            log: `GDS API returned option for ${origin} -> ${destination}: ${id} (${airline}) at $${cost}.`,
             stateDelta: delta,
             fullState,
           } as StepEvent);
