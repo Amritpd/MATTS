@@ -226,23 +226,6 @@ erDiagram
 * **Implementation:** Replaces synchronous mocks with LangGraph's native `interrupt()` primitive.
 * **Flow:** Yields execution, suspends CPU consumption, dispatches an interactive card to the Manager's Slack/Email, and resumes when the approval webhook fires.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Employee as Employee Agent
-    participant LangGraph as MATTS State Machine
-    participant Slack as Manager Slack / Mobile
-    participant DB as Postgres Checkpoint
-
-    Employee->>LangGraph: Request flight ($650)
-    LangGraph->>LangGraph: Supervisor Router: Cost > $500
-    LangGraph->>DB: Save Snapshot & Pause Thread
-    LangGraph->>Slack: Send Interactive Approval Card
-    Note over LangGraph: Thread suspended (0 CPU usage)
-    Slack->>LangGraph: Webhook: Manager clicked "Approve"
-    LangGraph->>DB: Resume thread_id with status: APPROVED
-    LangGraph->>LangGraph: Execute idempotent card charge
-```
 
 ### 3. Distributed Financial Saga Pattern (Compensating Actions)
 * **Problem:** If a card charge succeeds but airline ticket issuance fails, money is debited without an issued ticket (split-brain state).
